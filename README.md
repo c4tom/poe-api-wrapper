@@ -45,6 +45,7 @@
   - [Contributors](#contributors)
 - [🤝 Copyright](#-copyright)
   - [Copyright Notice](#copyright-notice)
+- [Other Resources](#features)
 
 ## ✨ Highlights
 <details close>
@@ -1235,3 +1236,71 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ```
+
+## Features
+
+### Chat Search and Management
+- **Advanced Chat Search Interface**
+  - Dynamic bot selection from SQLite database
+  - Support for regular expression searches
+  - Flexible text extraction from different message formats
+  - Advanced search guide with examples
+
+### Chat Indexing
+- **SQLitize Tool**
+  - Convert chat history to SQLite database
+  - Recursive directory scanning
+  - Support for multiple JSON structures
+  - Detailed indexing and error reporting
+
+### Web Interface
+- Responsive and user-friendly design
+- Real-time chat search
+- Detailed chat view
+- Advanced filtering options
+
+## New Components
+
+### `sqlitize.py`
+- Converts chat history to SQLite
+- Handles various JSON formats
+- Generates consistent chat identifiers
+
+### `chat_web_search.py`
+- Web server for chat search
+- Dynamic bot listing
+- Advanced search capabilities
+- Detailed chat view
+
+## Search Features
+
+### Regular Expression Support
+- Search with regex patterns
+- Examples:
+  - `^start`: Matches lines starting with "start"
+  - `end$`: Matches lines ending with "end"
+  - `\b(word1|word2)\b`: Exact word matching
+
+### Bot Filtering
+- Dynamically retrieve available bots
+- Multi-select bot filtering
+- Alphabetically sorted bot list
+
+## Installation
+
+```bash
+pip install poe-api-wrapper
+```
+
+## Quick Start
+
+### Indexing Chats
+```bash
+sqlitize /path/to/chat/history -o chat_history.sqlite
+```
+
+### Running Web Search
+```bash
+chat_web_search chat_history.sqlite -p 8080
+```
+
