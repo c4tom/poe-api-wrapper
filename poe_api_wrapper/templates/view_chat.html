@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat com {{ bot_name }} - {{ chat_title }}</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            line-height: 1.6;
+        }
+        .chat-header {
+            background-color: #f4f4f4;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .human {
+            background-color: #e6f2ff;
+            text-align: right;
+        }
+        .bot {
+            background-color: #f0f0f0;
+        }
+        .timestamp {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-header">
+        <h1>Chat com {{ bot_name }}</h1>
+        <h2>{{ chat_title }}</h2>
+    </div>
+
+    <div class="chat-messages">
+        {% for message in messages %}
+            <div class="message {{ 'human' if message['author'] == 'human' else 'bot' }}">
+                <strong>{{ 'Você' if message['author'] == 'human' else bot_name }}:</strong>
+                <p>{{ message['text'] }}</p>
+                {% if message.get('timestamp') %}
+                    <div class="timestamp">{{ message['timestamp'] }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        // Scroll to bottom of chat
+        window.scrollTo(0, document.body.scrollHeight);
+    </script>
+</body>
+</html>

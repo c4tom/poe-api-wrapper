@@ -1,9 +1,25 @@
+# Importações padrão do Python
 import os
 import json
 import sqlite3
+import html
+import re
+import base64
+from datetime import datetime  # Importação correta do datetime
 import argparse
 from typing import List, Dict, Any
+
+# Importações de terceiros
+import markdown2
+import requests
+import plantuml
+from rich.console import Console  # Adicionar importação do Console
+
+# Importações do Flask e relacionadas
 from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
+
+# Importações para syntax highlighting
 from pygments import highlight
 from pygments.lexers import JsonLexer
 from pygments.formatters import HtmlFormatter
@@ -15,10 +31,19 @@ class ChatWebSearcher:
         
         :param database_path: Caminho para o banco de dados SQLite
         """
+        # Importar módulos necessários
+        import re
+        self.re = re
+        
+        self.console = Console()
         self.database_path = os.path.abspath(database_path)
         
         if not os.path.exists(self.database_path):
+            self.console.print(f"[red]Erro: Banco de dados {self.database_path} não encontrado.[/red]")
             raise FileNotFoundError(f"Banco de dados {self.database_path} não existe.")
+        
+        # Configurar PlantUML
+        self.plantuml_server = "http://www.plantuml.com/plantuml/png/"
     
     def _connect(self):
         """Conecta ao banco de dados SQLite"""
@@ -58,40 +83,122 @@ class ChatWebSearcher:
     
     def extract_text_from_message(self, message):
         """
-        Extrai texto de diferentes formatos de mensagem.
+        Extrai o texto da mensagem, preservando formatação de código e markdown
         
-        :param message: Mensagem em diferentes formatos
-        :return: Texto extraído ou string vazia
+        :param message: Dicionário da mensagem
+        :return: Texto extraído com formatação preservada
         """
-        # Se já for uma string, retorna diretamente
-        if isinstance(message, str):
-            return message
+        # Verificar se a mensagem é um dicionário
+        if not isinstance(message, dict):
+            return str(message)
         
-        # Se for um dicionário, tentar extrair texto de diferentes campos
-        if isinstance(message, dict):
-            # Priorizar campos de texto conhecidos
-            text_fields = [
-                'text', 
-                'content', 
-                'message', 
-                'body', 
-                'description'
-            ]
+        # Tentar extrair texto de diferentes formatos de mensagem
+        text_candidates = [
+            message.get('text', ''),
+            message.get('content', ''),
+            message.get('message', ''),
+            message.get('value', '')
+        ]
+        
+        # Escolher o primeiro candidato não vazio
+        text = next((t for t in text_candidates if t), '')
+        
+        # Renderizar markdown e código
+        rendered_text = self.render_message(text)
+        
+        return rendered_text
+    
+    def render_message(self, text):
+        """
+        Renderiza mensagens com suporte avançado a markdown e código
+        """
+        # Função para processar blocos de código
+        def process_code_blocks(text):
+            # Padrão para encontrar blocos de código com linguagem
+            code_block_pattern = r'```(\w*)\n(.*?)```'
             
-            for field in text_fields:
-                if field in message:
-                    # Se o campo for um dicionário, tentar extrair texto
-                    if isinstance(message[field], dict):
-                        # Tentar campos aninhados
-                        for subfield in ['text', 'content', 'value']:
-                            if subfield in message[field]:
-                                return str(message[field][subfield])
-                    
-                    # Se não for dicionário, converter para string
-                    return str(message[field])
+            def replace_code_block(match):
+                language = match.group(1) or 'text'
+                code = match.group(2).strip()
+                
+                # Garantir que linguagens específicas sejam mapeadas corretamente
+                language_map = {
+                    'php': 'php',
+                    'python': 'python',
+                    'js': 'javascript',
+                    'javascript': 'javascript',
+                    'html': 'html',
+                    'css': 'css',
+                    'json': 'json',
+                    'bash': 'bash',
+                    'shell': 'bash'
+                }
+                
+                # Normalizar linguagem
+                language = language_map.get(language.lower(), language)
+                
+                # Escapar HTML para evitar XSS
+                escaped_code = html.escape(code)
+                
+                # Retornar bloco de código formatado
+                return f'<pre><code class="language-{language}">{escaped_code}</code></pre>'
+            
+            return self.re.sub(code_block_pattern, replace_code_block, text, flags=self.re.DOTALL | self.re.MULTILINE)
         
-        # Se não conseguir extrair, converter para string
-        return str(message)
+        # Pré-processar blocos de código
+        text = process_code_blocks(text)
+        
+        # Renderizar markdown
+        rendered = markdown2.markdown(
+            text, 
+            extras=[
+                'code-friendly', 
+                'fenced-code-blocks', 
+                'tables', 
+                'header-ids', 
+                'footnotes', 
+                'task-lists'
+            ]
+        )
+        
+        # Função para renderizar PlantUML
+        def render_plantuml(match):
+            uml_code = match.group(1)
+            try:
+                # Comprimir e codificar o diagrama PlantUML
+                compressed = plantuml.deflate_and_encode(uml_code)
+                return f'<img src="{self.plantuml_server}{compressed}" alt="PlantUML Diagram"/>'
+            except Exception as e:
+                return f'<pre>Erro ao renderizar PlantUML: {str(e)}</pre>'
+        
+        # Substituir blocos PlantUML
+        rendered = self.re.sub(
+            r'<pre><code class="language-plantuml">(.*?)</code></pre>', 
+            render_plantuml, 
+            rendered, 
+            flags=self.re.DOTALL
+        )
+        
+        # Substituir outros diagramas (mermaid, graphviz, etc.)
+        diagram_types = [
+            'mermaid', 
+            'graphviz', 
+            'viz', 
+            'dot', 
+            'tikz', 
+            'wavedrom'
+        ]
+        
+        for diagram_type in diagram_types:
+            pattern = fr'<pre><code class="language-{diagram_type}">(.*?)</code></pre>'
+            rendered = self.re.sub(
+                pattern, 
+                lambda m: f'<div class="unsupported-diagram">[Diagrama {diagram_type.upper()} não suportado]</div>', 
+                rendered, 
+                flags=self.re.DOTALL
+            )
+        
+        return rendered
     
     def search_messages(self, 
                         query: str, 
@@ -107,6 +214,17 @@ class ChatWebSearcher:
         :param per_page: Número de resultados por página
         :return: Dicionário com resultados da busca
         """
+        # Importar bibliotecas de renderização
+        import markdown2
+        import html
+        import re
+        import base64
+        import requests
+        import plantuml
+        
+        # Configurar PlantUML
+        plantuml_server = "http://www.plantuml.com/plantuml/png/"
+        
         # Preparar conexão
         conn = self._connect()
         cursor = conn.cursor()
@@ -203,15 +321,33 @@ class ChatWebSearcher:
                 bot_name, chat_title, chat_id, messages_json = result
                 try:
                     messages = json.loads(messages_json)
+                    
+                    # Renderizar mensagens
+                    for msg in messages:
+                        if 'text' in msg:
+                            msg['text'] = self.render_message(msg['text'])
+                    
+                    # Contar ocorrências do termo de busca
+                    occurrences = sum(
+                        query.lower() in msg.get('text', '').lower() 
+                        for msg in messages
+                    )
+                    
                     processed_results.append({
                         'bot_name': bot_name,
                         'chat_title': chat_title,
                         'chat_id': chat_id,
-                        'messages': messages
+                        'messages': messages,
+                        'occurrences': occurrences,
+                        'view_url': f"/view_chat/{bot_name}/{chat_id}",
+                        'original_url': f"https://poe.com/s/chat/{bot_name}/{chat_id}"
                     })
                 except json.JSONDecodeError:
                     # Ignorar entradas com JSON inválido
                     continue
+            
+            # Ordenar resultados por número de ocorrências (decrescente)
+            processed_results.sort(key=lambda x: x['occurrences'], reverse=True)
             
             # Calcular total de páginas
             total_pages = (total_results + per_page - 1) // per_page
@@ -221,7 +357,8 @@ class ChatWebSearcher:
                 'total_results': total_results,
                 'page': page,
                 'per_page': per_page,
-                'total_pages': total_pages
+                'total_pages': total_pages,
+                'query': query
             }
         
         except Exception as e:
@@ -231,7 +368,8 @@ class ChatWebSearcher:
                 'total_results': 0,
                 'page': page,
                 'per_page': per_page,
-                'total_pages': 0
+                'total_pages': 0,
+                'query': query
             }
         finally:
             conn.close()
@@ -244,6 +382,11 @@ def create_app(database_path):
     :return: Aplicação Flask
     """
     app = Flask(__name__)
+    
+    # Desabilitar cache de template para desenvolvimento
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
+    app.jinja_env.auto_reload = True
+    
     searcher = ChatWebSearcher(database_path)
     
     @app.route('/')
@@ -261,29 +404,22 @@ def create_app(database_path):
         # Se nenhum bot for selecionado, busca em todos
         bot_filter = bots[0] if bots and bots[0] else None
         
-        results = searcher.search_messages(query, bot_filter, page)
-        
-        # Buscar bots disponíveis novamente para manter o filtro
-        available_bots = searcher.get_available_bots()
-        
-        # Formatar resultados para template
-        for result in results['results']:
-            result['formatted_json'] = highlight(
-                json.dumps(result['messages'], indent=2),
-                JsonLexer(),
-                HtmlFormatter(style='monokai')
-            )
+        # Realizar busca
+        results = searcher.search_messages(
+            query, 
+            bot_name=bot_filter, 
+            page=page
+        )
         
         return render_template(
             'results.html', 
             results=results, 
             query=query, 
-            selected_bots=bots,
-            available_bots=available_bots
+            selected_bots=bots
         )
     
     @app.route('/chat/<chat_id>')
-    def view_chat(chat_id):
+    def view_chat_detail(chat_id):
         conn = searcher._connect()
         cursor = conn.cursor()
         
@@ -316,34 +452,109 @@ def create_app(database_path):
                 JsonLexer(),
                 HtmlFormatter(style='monokai')
             )
+            
+            # Adicionar timestamp de renderização para debug
+            render_timestamp = datetime.now().isoformat()
+            
             return render_template(
                 'chat_detail.html', 
                 messages=formatted_messages, 
                 formatted_json=formatted_json,
                 bot_name=bot_name,
-                chat_title=chat_title
+                chat_title=chat_title,
+                render_timestamp=render_timestamp  # Novo campo para debug
             )
         
         return "Chat não encontrado", 404
     
+    @app.route('/view_chat/<bot_name>/<chat_id>')
+    def view_chat(bot_name, chat_id):
+        """
+        Renderiza o chat completo a partir dos dados do SQLite
+        """
+        conn = sqlite3.connect(database_path)
+        cursor = conn.cursor()
+        
+        # Buscar mensagens do chat específico
+        cursor.execute(
+            "SELECT messages, bot_name, chat_title FROM chat_history WHERE bot_name = ? AND chat_id = ?", 
+            (bot_name, chat_id)
+        )
+        result = cursor.fetchone()
+        conn.close()
+        
+        if not result:
+            return "Chat não encontrado", 404
+        
+        # Carregar mensagens
+        messages_json, bot_name, chat_title = result
+        messages = json.loads(messages_json)
+        
+        return render_template(
+            'view_chat.html', 
+            bot_name=bot_name, 
+            chat_title=chat_title,
+            messages=messages
+        )
+    
     return app
 
 def main():
-    parser = argparse.ArgumentParser(description='Iniciar servidor de busca de chats')
+    """
+    Ponto de entrada para execução do chat web search
+    Suporta modos de desenvolvimento e produção
+    """
+    import argparse
+    import os
+    
+    # Configurar parser de argumentos
+    parser = argparse.ArgumentParser(description='Chat Web Search')
     parser.add_argument(
-        '-d', 
+        '--dev', 
+        action='store_true', 
+        help='Executar em modo de desenvolvimento'
+    )
+    parser.add_argument(
         '--database', 
-        default=os.path.join('historico', 'historico.sqlite'),
-        help='Caminho para o banco de dados SQLite'
+        default='historico.sqlite', 
+        help='Caminho do banco de dados SQLite'
+    )
+    parser.add_argument(
+        '--port', 
+        type=int, 
+        default=5000, 
+        help='Porta para o servidor web'
     )
     
+    # Parsear argumentos
     args = parser.parse_args()
     
-    # Garantir que o caminho seja absoluto
-    database_path = os.path.abspath(args.database)
+    # Criar aplicação Flask
+    app = create_app(args.database)
     
-    app = create_app(database_path)
-    app.run(debug=True)
+    # Configurações de execução
+    if args.dev:
+        # Modo de desenvolvimento
+        app.config['DEBUG'] = True
+        app.config['TEMPLATES_AUTO_RELOAD'] = True
+        
+        # Habilitar recarregamento automático
+        try:
+            from flask_cors import CORS
+            CORS(app)  # Permitir CORS em desenvolvimento
+        except ImportError:
+            print("CORS não instalado. Instale com: pip install flask-cors")
+        
+        # Executar em modo de desenvolvimento
+        app.run(
+            host='0.0.0.0', 
+            port=args.port, 
+            debug=True, 
+            use_reloader=True
+        )
+    else:
+        # Modo de produção
+        return app
 
 if __name__ == '__main__':
     main()
