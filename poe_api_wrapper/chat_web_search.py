@@ -22,7 +22,16 @@ class ChatWebSearcher:
     
     def _connect(self):
         """Conecta ao banco de dados SQLite"""
-        return sqlite3.connect(self.database_path)
+        conn = sqlite3.connect(self.database_path)
+        
+        # Adicionar função REGEXP personalizada
+        def regexp(expr, item):
+            import re
+            return re.search(expr, str(item), re.IGNORECASE) is not None
+        
+        conn.create_function("REGEXP", 2, regexp)
+        
+        return conn
     
     def get_available_bots(self):
         """
@@ -86,112 +95,146 @@ class ChatWebSearcher:
     
     def search_messages(self, 
                         query: str, 
-                        bot_name: str = None, 
+                        bot_filter: str = None, 
                         page: int = 1, 
-                        per_page: int = 100):
+                        per_page: int = 20):
         """
-        Busca mensagens no banco de dados com paginação
+        Busca mensagens no banco de dados com suporte a operadores booleanos
         
-        :param query: Texto de busca
-        :param bot_name: Nome do bot para filtrar (opcional)
-        :param page: Página atual
-        :param per_page: Registros por página
-        :return: Dicionário com resultados e metadados
+        :param query: Consulta de busca
+        :param bot_filter: Filtro de bot específico
+        :param page: Número da página
+        :param per_page: Número de resultados por página
+        :return: Dicionário com resultados da busca
         """
-        import re
-
+        # Preparar conexão
         conn = self._connect()
         cursor = conn.cursor()
         
-        # Preparar condições de busca
+        # Processar a query
+        def parse_query(query):
+            # Decodificar URL
+            import urllib.parse
+            query = urllib.parse.unquote(query)
+            
+            # Separar termos obrigatórios, proibidos e opcionais
+            required_terms = []
+            forbidden_terms = []
+            optional_terms = []
+            
+            for term in query.split():
+                if term.startswith('+'):
+                    required_terms.append(term[1:])
+                elif term.startswith('-'):
+                    forbidden_terms.append(term[1:])
+                else:
+                    optional_terms.append(term)
+            
+            return {
+                'required': required_terms,
+                'forbidden': forbidden_terms,
+                'optional': optional_terms
+            }
+        
+        # Construir consulta SQL dinâmica
+        parsed_query = parse_query(query)
+        
+        # Preparar parâmetros e condições
         conditions = []
         params = []
         
-        # Filtro por bot, se especificado
-        if bot_name:
+        # Filtro de bot, se especificado
+        if bot_filter:
             conditions.append("bot_name = ?")
-            params.append(bot_name)
+            params.append(bot_filter)
         
-        # Verificar se é uma expressão regular
-        is_regex = False
-        try:
-            re.compile(query)
-            is_regex = True
-        except re.error:
-            is_regex = False
-        
-        # Definir estratégia de busca
-        if is_regex:
-            # Busca por expressão regular
+        # Adicionar condições para termos obrigatórios
+        for term in parsed_query['required']:
             conditions.append("messages REGEXP ?")
-            params.append(query)
-        else:
-            # Busca por texto simples
-            conditions.append("messages LIKE ?")
-            params.append(f"%{query}%")
+            params.append(term)
         
-        # Construir consulta SQL base
-        base_query = """
-        SELECT id, bot_name, chat_title, chat_id, messages 
-        FROM chat_history
-        """
+        # Adicionar condições para termos proibidos
+        for term in parsed_query['forbidden']:
+            conditions.append("messages NOT REGEXP ?")
+            params.append(term)
         
-        if conditions:
-            base_query += " WHERE " + " AND ".join(conditions)
+        # Adicionar condições para termos opcionais
+        optional_conditions = []
+        for term in parsed_query['optional']:
+            optional_conditions.append("messages REGEXP ?")
+            params.append(term)
         
-        # Consulta para total de resultados
-        count_query = f"SELECT COUNT(*) FROM ({base_query}) as subquery"
-        cursor.execute(count_query, params)
-        total_results = cursor.fetchone()[0]
+        # Montar consulta base
+        base_query = "SELECT bot_name, chat_title, chat_id, messages FROM chat_history"
         
-        # Calcular paginação
-        offset = (page - 1) * per_page
-        paginated_query = base_query + " LIMIT ? OFFSET ?"
-        params.extend([per_page, offset])
-        
-        # Executar consulta paginada
-        cursor.execute(paginated_query, params)
-        results = cursor.fetchall()
-        conn.close()
-        
-        # Processar resultados
-        processed_results = []
-        for result in results:
-            _, bot_name, chat_title, chat_id, messages_json = result
+        # Adicionar WHERE se houver condições
+        if conditions or optional_conditions:
+            base_query += " WHERE "
             
-            try:
-                messages = json.loads(messages_json)
-                
-                # Encontrar trechos com a palavra
-                matching_messages = []
-                for msg in messages:
-                    text = self.extract_text_from_message(msg)
-                    
-                    # Verificar se texto corresponde à busca
-                    if is_regex:
-                        if re.search(query, text, re.IGNORECASE):
-                            matching_messages.append(msg)
-                    else:
-                        if query.lower() in text.lower():
-                            matching_messages.append(msg)
-                
-                processed_results.append({
-                    'bot_name': bot_name,
-                    'chat_title': chat_title,
-                    'chat_id': chat_id,
-                    'matching_messages': matching_messages,
-                    'total_matching': len(matching_messages)
-                })
-            except Exception as e:
-                print(f"Erro ao processar mensagens: {e}")
+            # Adicionar condições obrigatórias
+            if conditions:
+                base_query += " AND ".join(conditions)
+            
+            # Adicionar condições opcionais com OR
+            if optional_conditions:
+                if conditions:
+                    base_query += " AND "
+                base_query += "(" + " OR ".join(optional_conditions) + ")"
         
-        return {
-            'results': processed_results,
-            'total_results': total_results,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': (total_results + per_page - 1) // per_page
-        }
+        # Consultas para contagem e resultados
+        count_query = f"SELECT COUNT(*) FROM ({base_query})"
+        paginated_query = base_query + " LIMIT ? OFFSET ?"
+        
+        # Adicionar parâmetros de paginação
+        params.extend([per_page, (page - 1) * per_page])
+        
+        try:
+            # Executar consulta de contagem
+            cursor.execute(count_query, params[:-2])
+            total_results = cursor.fetchone()[0]
+            
+            # Executar consulta paginada
+            cursor.execute(paginated_query, params)
+            results = cursor.fetchall()
+            
+            # Processar resultados
+            processed_results = []
+            for result in results:
+                bot_name, chat_title, chat_id, messages_json = result
+                try:
+                    messages = json.loads(messages_json)
+                    processed_results.append({
+                        'bot_name': bot_name,
+                        'chat_title': chat_title,
+                        'chat_id': chat_id,
+                        'messages': messages
+                    })
+                except json.JSONDecodeError:
+                    # Ignorar entradas com JSON inválido
+                    continue
+            
+            # Calcular total de páginas
+            total_pages = (total_results + per_page - 1) // per_page
+            
+            return {
+                'results': processed_results,
+                'total_results': total_results,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': total_pages
+            }
+        
+        except Exception as e:
+            print(f"Erro na busca: {e}")
+            return {
+                'results': [],
+                'total_results': 0,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': 0
+            }
+        finally:
+            conn.close()
 
 def create_app(database_path):
     """
@@ -226,7 +269,7 @@ def create_app(database_path):
         # Formatar resultados para template
         for result in results['results']:
             result['formatted_json'] = highlight(
-                json.dumps(result['matching_messages'], indent=2),
+                json.dumps(result['messages'], indent=2),
                 JsonLexer(),
                 HtmlFormatter(style='monokai')
             )
@@ -286,15 +329,21 @@ def create_app(database_path):
     return app
 
 def main():
-    parser = argparse.ArgumentParser(description='Servidor web de busca de chats')
-    parser.add_argument('database', help='Caminho do banco de dados SQLite')
-    parser.add_argument('-p', '--port', type=int, default=5000, help='Porta do servidor')
-    parser.add_argument('--host', default='0.0.0.0', help='Host do servidor')
+    parser = argparse.ArgumentParser(description='Iniciar servidor de busca de chats')
+    parser.add_argument(
+        '-d', 
+        '--database', 
+        default=os.path.join('historico', 'historico.sqlite'),
+        help='Caminho para o banco de dados SQLite'
+    )
     
     args = parser.parse_args()
     
-    app = create_app(args.database)
-    app.run(host=args.host, port=args.port, debug=True)
+    # Garantir que o caminho seja absoluto
+    database_path = os.path.abspath(args.database)
+    
+    app = create_app(database_path)
+    app.run(debug=True)
 
 if __name__ == '__main__':
     main()

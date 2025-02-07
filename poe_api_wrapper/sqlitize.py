@@ -22,7 +22,7 @@ def convert_to_sqlite(directory: str, output_db: str = None):
     
     # Se nenhum banco de dados for especificado, use o padrão
     if not output_db:
-        output_db = os.path.join(directory, 'chat_history.sqlite')
+        output_db = os.path.join(directory, 'historico.sqlite')
     else:
         # Adicionar extensão .sqlite se não existir
         if not output_db.lower().endswith('.sqlite'):
