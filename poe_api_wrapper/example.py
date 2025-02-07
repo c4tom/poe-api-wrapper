@@ -3,6 +3,10 @@ from os import _exit
 from rich.markdown import Markdown
 from rich.console import Console
 from rich.live import Live
+import json
+import os
+import re
+import time
 
 BANNER = """ 
 \033[38;2;140;84;228m
@@ -329,6 +333,50 @@ class PoeExample:
                 print('Invalid choice. Please select a valid option.\n')
                 continue
 
+    def save_all_chats(self):
+        data = self.client.get_chat_history(interval=500)
+        bots = data['data']
+        if not os.path.exists('historico'):
+            os.makedirs('historico')
+        
+        for bot, bot_chats in bots.items():
+            if not os.path.exists(f'historico/{bot}'):
+                os.makedirs(f'historico/{bot}')
+            
+            for chat in bot_chats:
+                try:
+                    # Verificar se o título do chat existe
+                    chat_title = chat.get("title", f"chat_{chat.get('chatId', 'unknown')}")
+                    
+                    # Sanitizar o nome do arquivo
+                    filename = re.sub(r'[^\w\-_\. ]', '_', str(chat_title))
+                    filepath = f'historico/{bot}/{filename}.json'
+                    
+                    # Verificar se o arquivo já existe
+                    if os.path.exists(filepath):
+                        print(f"Arquivo {filepath} já existe. Pulando...")
+                        continue
+                    
+                    # Obter o histórico do chat
+                    chat_history = self.client.get_previous_messages(
+                        bot=bot, 
+                        chatId=chat["chatId"], 
+                        get_all=True
+                    )
+                    
+                    # Salvar o histórico
+                    with open(filepath, 'w', encoding='utf-8') as f:
+                        json.dump(chat_history, f, ensure_ascii=False, indent=2)
+                    
+                    print(f"Salvando histórico do chat: {chat_title}")
+                    time.sleep(0.5)  # Delay para evitar sobrecarga
+                
+                except Exception as e:
+                    print(f"Erro ao salvar chat {chat.get('title', 'Sem título')}: {e}")
+                    continue
+        
+        print("Processo de salvamento de chats concluído.")
+
     def chat_with_bot(self, bot=None, chatId=None, chatCode=None):
         
         self.bot = bot
@@ -383,6 +431,7 @@ class PoeExample:
                     '\033[38;5;121m!purgeall\033[0m : Delete all conversations (be careful)\n'
                     '\033[38;5;121m!delete\033[0m : Delete the conversation\n'
                     '\033[38;5;121m!reset\033[0m : Choose a new Bot\n'
+                    '\033[38;5;121m!saveall\033[0m : Save all chat history\n'
                     '\033[38;5;121m!exit\033[0m : Exit the program\n'
                     '------------------------------------------------------------\n') 
             elif message == '!switch':
@@ -448,6 +497,9 @@ class PoeExample:
                                 Markdown(f'\033[38;5;20m{self.bot}\033[0m : {message["text"]}', code_theme='monokai')
                             ) if message['contentType']=="text_markdown" else ''
                 print("\n")
+            elif message == '!saveall':
+                self.save_all_chats()
+                print("All chats have been saved successfully!")
             else:
                 if message == '!suggest 1':
                     message =  chunk["suggestedReplies"][0]

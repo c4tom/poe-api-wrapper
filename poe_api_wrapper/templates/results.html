@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Resultados da Busca</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 1000px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        .result { 
+            border: 1px solid #ddd; 
+            margin-bottom: 15px; 
+            padding: 10px; 
+        }
+        .pagination { 
+            display: flex; 
+            justify-content: center; 
+            margin-top: 20px; 
+        }
+        .pagination a { 
+            margin: 0 10px; 
+            text-decoration: none; 
+            color: blue; 
+        }
+        .bot-filter {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Resultados da Busca</h1>
+    <p>Termo: "{{ query }}"</p>
+    
+    <div class="bot-filter">
+        <strong>Bots selecionados:</strong>
+        {% if selected_bots %}
+            {{ selected_bots|join(', ') }}
+        {% else %}
+            Todos
+        {% endif %}
+    </div>
+    
+    <p>Total de resultados: {{ results.total_results }}</p>
+    
+    {% for result in results.results %}
+    <div class="result">
+        <h3>{{ result.chat_title }} ({{ result.bot_name }})</h3>
+        <p>Ocorrências: {{ result.total_matching }}</p>
+        <a href="/chat/{{ result.chat_id }}">Ver Chat Completo</a>
+    </div>
+    {% endfor %}
+    
+    <div class="pagination">
+        {% if results.page > 1 %}
+            <a href="/search?query={{ query }}&page={{ results.page - 1 }}&bot={{ selected_bots|join('&bot=') }}">Anterior</a>
+        {% endif %}
+        
+        Página {{ results.page }} de {{ results.total_pages }}
+        
+        {% if results.page < results.total_pages %}
+            <a href="/search?query={{ query }}&page={{ results.page + 1 }}&bot={{ selected_bots|join('&bot=') }}">Próxima</a>
+        {% endif %}
+    </div>
+    
+    <p><a href="/">Nova Busca</a></p>
+</body>
+</html>

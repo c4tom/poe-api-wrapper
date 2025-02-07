@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Busca de Chats</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        form { 
+            display: flex; 
+            flex-direction: column;
+            margin-bottom: 20px; 
+        }
+        input, select, button { 
+            margin: 10px 0; 
+            padding: 10px; 
+        }
+        .bot-select {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .bot-select label {
+            display: flex;
+            align-items: center;
+        }
+        
+        .bot-checkboxes {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        
+        .examples .badge {
+            margin: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Busca Avançada de Chats</h1>
+    
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-md-6">
+                <form action="/search" method="get">
+                    <div class="form-group">
+                        <label for="query">Busca de Chats</label>
+                        <input type="text" class="form-control" id="query" name="query" placeholder="Digite sua busca">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Bots Disponíveis</label>
+                        <div class="bot-checkboxes">
+                            {% for bot in bots %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="bot" value="{{ bot }}" id="bot-{{ bot }}">
+                                <label class="form-check-label" for="bot-{{ bot }}">
+                                    {{ bot }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Buscar</button>
+                </form>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        Guia de Busca Avançada
+                    </div>
+                    <div class="card-body">
+                        <h5>Dicas de Busca</h5>
+                        <ul class="list-unstyled">
+                            <li>
+                                <strong>Expressões Regulares:</strong>
+                                <code>^inicio</code> (começa com "inicio")
+                                <code>fim$</code> (termina com "fim")
+                                <code>\b(palavra1|palavra2)\b</code> (palavras exatas)
+                            </li>
+                            <li>
+                                <strong>Operadores Booleanos:</strong>
+                                <code>"frase exata"</code> (busca frase completa)
+                                <code>+palavra1 -palavra2</code> (com palavra1, sem palavra2)
+                            </li>
+                            <li>
+                                <strong>Caracteres Curinga:</strong>
+                                <code>*</code> (zero ou mais caracteres)
+                                <code>?</code> (um caractere)
+                            </li>
+                        </ul>
+                        
+                        <h5>Exemplos</h5>
+                        <div class="examples">
+                            <span class="badge badge-info" onclick="document.getElementById('query').value='python'">python</span>
+                            <span class="badge badge-info" onclick="document.getElementById('query').value='^como'">Começa com "como"</span>
+                            <span class="badge badge-info" onclick="document.getElementById('query').value='desenvolv*'">Desenvolv*</span>
+                            <span class="badge badge-info" onclick="document.getElementById('query').value='\bapi\b'">Palavra "api"</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const examples = document.querySelectorAll('.examples .badge');
+        examples.forEach(example => {
+            example.addEventListener('click', function() {
+                document.getElementById('query').value = this.textContent;
+            });
+        });
+    });
+    </script>
+</body>
+</html>

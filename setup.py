@@ -36,6 +36,9 @@ setup(
     entry_points={
         "console_scripts": [
             "poe = poe_api_wrapper.cli:main",
+            "sqlitize = poe_api_wrapper.sqlitize:main",
+            "search_chats = poe_api_wrapper.search_chats:main",
+            "chat_web_search = poe_api_wrapper.chat_web_search:main"
         ],
     },
 )

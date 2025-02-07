@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Detalhes do Chat</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 1000px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        .json-highlight {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .message-container {
+            border-bottom: 1px solid #ddd;
+            padding: 10px 0;
+        }
+        .message-text {
+            font-weight: bold;
+            color: #333;
+        }
+        .message-details {
+            margin-top: 5px;
+        }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='pygments.css') }}">
+</head>
+<body>
+    <h1>Detalhes do Chat</h1>
+    
+    <div class="messages">
+        {% for message in messages %}
+        <div class="message-container">
+            <div class="message-text">{{ message.text | safe }}</div>
+            <div class="message-details" style="display:none;">
+                <pre>{{ message.original | tojson(indent=2) }}</pre>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <h2>JSON Formatado</h2>
+    <div class="json-highlight">
+        {{ formatted_json | safe }}
+    </div>
+    
+    <p><a href="/">Nova Busca</a></p>
+</body>
+</html>
