@@ -81,7 +81,7 @@ def convert_to_sqlite(directory: str, output_db: str = None):
                     if isinstance(chat_data, list):
                         # Tentar extrair informações da lista de mensagens
                         messages = chat_data
-                        bot_name = messages[0].get('author', 'Unknown') if messages else 'Unknown'
+                        bot_name = os.path.basename(os.path.dirname(file_path))
                         chat_title = os.path.splitext(file)[0]
                         
                         # Gerar chat_id consistente
@@ -90,11 +90,7 @@ def convert_to_sqlite(directory: str, output_db: str = None):
                         ).hexdigest()
                     else:
                         # Extrair informações do nome do arquivo ou do JSON
-                        bot_name = (
-                            chat_data.get('bot_name') or 
-                            chat_data.get('bot') or 
-                            os.path.basename(root)
-                        )
+                        bot_name = os.path.basename(os.path.dirname(file_path))
                         
                         chat_title = (
                             chat_data.get('chat_title') or 
