@@ -38,6 +38,7 @@ class PoeExample:
                 "[4] : Search for a user's bots\n"
                 "[5] : Search for users and their bots\n"
                 "[6] : See the chat history\n"
+                "[7] : Save all chat history\n"
             )
             
             selection = input('Your choice: ')
@@ -166,6 +167,10 @@ class PoeExample:
                 data = self.client.get_chat_history(interval=500)
                 self.continue_thread(data['data'], '!history 1')
                 break
+            elif selection == '7':
+                self.save_all_chats()
+                print("All chats have been saved successfully!")
+                continue
             else:
                 print('Invalid choice. Please select a valid option.\n')
                 continue
