@@ -1,0 +1,1 @@
+set FLASK_ENV=development && python -m poe_api_wrapper.chat_web_search --database historico\historico.sqlite --dev
