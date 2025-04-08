@@ -19,6 +19,7 @@ if "%choice%"=="1" (
     for /d %%i in ("D:\desenv\python\Lib\site-packages\~*") do rd /s /q "%%i"
     del /q "D:\desenv\python\Lib\site-packages\~*"
     python -m pip install --upgrade pip setuptools wheel
+    python -m pip install fastapi-poe ballyregan
     python -m pip uninstall -y poe-api-wrapper
     python -m pip install --no-cache-dir --force-reinstall --no-deps poe-api-wrapper
     echo Installing in Editable Mode...
@@ -31,6 +32,7 @@ if "%choice%"=="2" (
     for /d %%i in ("D:\desenv\python\Lib\site-packages\~*") do rd /s /q "%%i"
     del /q "D:\desenv\python\Lib\site-packages\~*"
     python -m pip install --upgrade pip setuptools wheel
+    python -m pip install fastapi-poe ballyregan
     python -m pip uninstall -y poe-api-wrapper
     python -m pip install --no-cache-dir --force-reinstall poe-api-wrapper
 )

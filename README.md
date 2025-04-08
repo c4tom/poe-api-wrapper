@@ -1302,5 +1302,3 @@ sqlitize /path/to/chat/history -o chat_history.sqlite
 ### Running Web Search
 ```bash
 chat_web_search chat_history.sqlite -p 8080
-```
-

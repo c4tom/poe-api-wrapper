@@ -8,7 +8,6 @@ class PoeBundle:
     form_key_pattern = r"window\.([a-zA-Z0-9]+)=function\(\)\{return window"
     window_secret_pattern = r'let useFormkeyDecode=[\s\S]*?(window\.[\w]+="[^"]+")'
     static_pattern = r'static[^"]*\.js'
-    form_key_value_pattern = r'return "([a-zA-Z0-9]+)"'
 
     def __init__(self, document: str):
         self._window = "const window={document:{hack:1},navigator:{userAgent:'safari <3'}};"
@@ -76,13 +75,9 @@ class PoeBundle:
         match = re.search(self.form_key_pattern, script)
         if not (secret := match.group(1)):
             raise RuntimeError("Failed to parse form-key function in Poe document")
-
+        
         script += f'window.{secret}().slice(0, 32);'
         context = quickjs.Context()
-        script_result = context.eval(script)
-        formkey_match = re.search(r'return "([a-zA-Z0-9]+)"', str(script_result))
-        if not formkey_match:
-            raise RuntimeError("Failed to extract formkey value")
-        formkey = formkey_match.group(1)
+        formkey = str(context.eval(script))
         logger.info(f"Retrieved formkey successfully: {formkey}")
         return formkey

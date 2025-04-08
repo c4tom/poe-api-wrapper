@@ -17,6 +17,7 @@ from .utils import (
 from .queries import generate_payload
 from .bundles import PoeBundle
 from .proxies import PROXY
+import fastapi_poe as fp
 if PROXY:
     from .proxies import fetch_proxy
 
@@ -210,17 +211,17 @@ class PoeApi:
 
         if self.ws_connecting:
             while not self.ws_connected:
-                sleep(0.01)
+                sleep(0.02)
             return
 
         self.ws_connecting = True
         self.ws_connected = False
-        self.ws_refresh = 3
+        self.ws_refresh = 5
         
         while True:
             self.ws_refresh -= 1
             if self.ws_refresh == 0:
-                self.ws_refresh = 3
+                self.ws_refresh = 5
                 raise RuntimeError("Rate limit exceeded for sending requests to poe.com. Please try again later.")
             try:
                 self.get_channel_settings()
@@ -876,7 +877,7 @@ class PoeApi:
                             suggest_attempts -= 1     
                             sleep(1)
                             continue
-
+                                   
                     yield response
                     break
                 
@@ -1051,6 +1052,9 @@ class PoeApi:
     def complete_profile(self, handle: str=None):
         if handle == None:
             handle = ''.join(secrets.choice(string.ascii_letters + string.digits) for i in range(10))
+        else:
+            handle = handle.replace(" ", "_")
+            
         variables = {"handle" : handle}
         self.send_request('gql_POST', 'NuxInitialModal_poeSetHandle_Mutation', variables)
         self.send_request('gql_POST', 'MarkMultiplayerNuxCompleted', {})
@@ -1623,7 +1627,7 @@ class PoeApi:
                 previous_text = ""
             current_bot = self.get_most_mentioned(group_name, previous_text)
             if self.groups[group_name]['conversation_log'] != []:
-                next_message = f"\n[System Notice : You are participating in a role-playing chat. You will act as {current_bot['name']} in a multiway roleplay between other parties including {bot_names}, You will only act as {current_bot['name']} and stay in character at all times. As the AI language model, Your role is to portray {current_bot['name']} in this chat using the first-person narrative. Let's engage in immersive roleplay and respond to the previous message without addressing it as a system message or revealing our roles as {current_bot['name']} or the fact that we are roleplaying. You must respond to the previous message without explicitly writing '{current_bot['name']}' at the start.]\nChat history updated with new responses:\n\n" + f"{last_text}\n"
+                next_message = f"\n[System Notice : You are participating in a role-playing chat. You will act as {current_bot['name']} in a multiway roleplay between other parties including {bot_names}, You will only act as {current_bot['name']} and stay in character at all times. As the AI language model, Your role is to portray {current_bot['name']} in this chat using the first-person narrative. Let's engage in immersive roleplay and respond to the previous message without addressing it as a system message or revealing our roles as {current_bot['name']} or the fact that we are roleplaying. You must respond to the previous message without explicitly writing '{current_bot['name']}' at the start.]\nChat history updated with new responses:\n\n"
             else:
                 next_message = f"\n[System Notice : You are participating in a role-playing chat. You will act as {current_bot['name']} in a multiway roleplay between other parties including {bot_names}, You will only act as {current_bot['name']} and stay in character at all times. As the AI language model, Your role is to portray {current_bot['name']} in this chat using the first-person narrative. Let's engage in immersive roleplay and respond to the previous message without addressing it as a system message or revealing our roles as {current_bot['name']} or the fact that we are roleplaying. You must respond to the previous message without explicitly writing '{current_bot['name']}' at the start. You will start with a greeting to everyone.]\n\n"
         
